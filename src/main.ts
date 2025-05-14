@@ -53,7 +53,7 @@ class TestReporter {
   readonly failOnError = core.getInput('fail-on-error', {required: true}) === 'true'
   readonly workDirInput = core.getInput('working-directory', {required: false})
   readonly onlySummary = core.getInput('only-summary', {required: false}) === 'true'
-  readonly outputTo = core.getInput('output-to', {required: false})
+  readonly outputTo = core.getInput('output-to', {required: false}) as 'checks' | 'step-summary'
   readonly token = core.getInput('token', {required: true})
   readonly slugPrefix: string = ''
   readonly octokit: InstanceType<typeof GitHub>
@@ -205,8 +205,8 @@ class TestReporter {
     }
 
     core.info('Creating report summary')
-    const {listSuites, listTests, onlySummary, slugPrefix} = this
-    const summary = getReport(results, {listSuites, listTests, baseUrl, slugPrefix, onlySummary})
+    const {listSuites, listTests, outputTo, onlySummary, slugPrefix} = this
+    const summary = getReport(results, {listSuites, listTests, outputTo, baseUrl, slugPrefix, onlySummary})
 
     core.info('Creating annotations')
     const annotations = getAnnotations(results, this.maxAnnotations)

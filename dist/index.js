@@ -389,8 +389,8 @@ class TestReporter {
             }
         }
         core.info('Creating report summary');
-        const { listSuites, listTests, onlySummary, slugPrefix } = this;
-        const summary = (0, get_report_1.getReport)(results, { listSuites, listTests, baseUrl, slugPrefix, onlySummary });
+        const { listSuites, listTests, outputTo, onlySummary, slugPrefix } = this;
+        const summary = (0, get_report_1.getReport)(results, { listSuites, listTests, outputTo, baseUrl, slugPrefix, onlySummary });
         core.info('Creating annotations');
         const annotations = (0, get_annotations_1.getAnnotations)(results, this.maxAnnotations);
         const isFailed = results.some(tr => tr.result === 'failed');
@@ -796,7 +796,8 @@ class DotnetTrxParser {
         }
     }
     getTestClasses(trx) {
-        if (trx.TestRun.TestDefinitions === undefined || trx.TestRun.Results === undefined) {
+        if (trx.TestRun.TestDefinitions === undefined || trx.TestRun.Results === undefined ||
+            !trx.TestRun.TestDefinitions.some(td => td.UnitTest && Array.isArray(td.UnitTest))) {
             return [];
         }
         const unitTests = {};
@@ -1618,9 +1619,11 @@ const markdown_utils_1 = __nccwpck_require__(6482);
 const parse_utils_1 = __nccwpck_require__(7811);
 const slugger_1 = __nccwpck_require__(3328);
 const MAX_REPORT_LENGTH = 65535;
+const MAX_SUMMARY_LENGTH = 1048576;
 const defaultOptions = {
     listSuites: 'all',
     listTests: 'all',
+    outputTo: 'checks',
     slugPrefix: '',
     baseUrl: '',
     onlySummary: false
@@ -1631,7 +1634,7 @@ function getReport(results, options = defaultOptions) {
     const opts = { ...options };
     let lines = renderReport(results, opts);
     let report = lines.join('\n');
-    if (getByteLength(report) <= MAX_REPORT_LENGTH) {
+    if (getByteLength(report) <= getMaxReportLength(options)) {
         return report;
     }
     if (opts.listTests === 'all') {
@@ -1639,19 +1642,22 @@ function getReport(results, options = defaultOptions) {
         opts.listTests = 'failed';
         lines = renderReport(results, opts);
         report = lines.join('\n');
-        if (getByteLength(report) <= MAX_REPORT_LENGTH) {
+        if (getByteLength(report) <= getMaxReportLength(options)) {
             return report;
         }
     }
-    core.warning(`Test report summary exceeded limit of ${MAX_REPORT_LENGTH} bytes and will be trimmed`);
-    return trimReport(lines);
+    core.warning(`Test report summary exceeded limit of ${getMaxReportLength(options)} bytes and will be trimmed`);
+    return trimReport(lines, options);
 }
 exports.getReport = getReport;
-function trimReport(lines) {
+function getMaxReportLength(options = defaultOptions) {
+    return options.outputTo === 'step-summary' ? MAX_SUMMARY_LENGTH : MAX_REPORT_LENGTH;
+}
+function trimReport(lines, options) {
     const closingBlock = '```';
-    const errorMsg = `**Report exceeded GitHub limit of ${MAX_REPORT_LENGTH} bytes and has been trimmed**`;
+    const errorMsg = `**Report exceeded GitHub limit of ${getMaxReportLength(options)} bytes and has been trimmed**`;
     const maxErrorMsgLength = closingBlock.length + errorMsg.length + 2;
-    const maxReportLength = MAX_REPORT_LENGTH - maxErrorMsgLength;
+    const maxReportLength = getMaxReportLength(options) - maxErrorMsgLength;
     let reportLength = 0;
     let codeBlock = false;
     let endLineIndex = 0;

@@ -5,10 +5,12 @@ import {getFirstNonEmptyLine} from '../utils/parse-utils'
 import {slug} from '../utils/slugger'
 
 const MAX_REPORT_LENGTH = 65535
+const MAX_SUMMARY_LENGTH = 1048576
 
 export interface ReportOptions {
   listSuites: 'all' | 'failed'
   listTests: 'all' | 'failed' | 'none'
+  outputTo: 'checks' | 'step-summary'
   slugPrefix: string
   baseUrl: string
   onlySummary: boolean
@@ -17,6 +19,7 @@ export interface ReportOptions {
 const defaultOptions: ReportOptions = {
   listSuites: 'all',
   listTests: 'all',
+  outputTo: 'checks',
   slugPrefix: '',
   baseUrl: '',
   onlySummary: false
@@ -31,7 +34,7 @@ export function getReport(results: TestRunResult[], options: ReportOptions = def
   let lines = renderReport(results, opts)
   let report = lines.join('\n')
 
-  if (getByteLength(report) <= MAX_REPORT_LENGTH) {
+  if (getByteLength(report) <= getMaxReportLength(options)) {
     return report
   }
 
@@ -40,20 +43,24 @@ export function getReport(results: TestRunResult[], options: ReportOptions = def
     opts.listTests = 'failed'
     lines = renderReport(results, opts)
     report = lines.join('\n')
-    if (getByteLength(report) <= MAX_REPORT_LENGTH) {
+    if (getByteLength(report) <= getMaxReportLength(options)) {
       return report
     }
   }
 
-  core.warning(`Test report summary exceeded limit of ${MAX_REPORT_LENGTH} bytes and will be trimmed`)
-  return trimReport(lines)
+  core.warning(`Test report summary exceeded limit of ${getMaxReportLength(options)} bytes and will be trimmed`)
+  return trimReport(lines, options)
 }
 
-function trimReport(lines: string[]): string {
+function getMaxReportLength(options: ReportOptions = defaultOptions): number {
+  return options.outputTo === 'step-summary' ? MAX_SUMMARY_LENGTH : MAX_REPORT_LENGTH
+}
+
+function trimReport(lines: string[], options: ReportOptions): string {
   const closingBlock = '```'
-  const errorMsg = `**Report exceeded GitHub limit of ${MAX_REPORT_LENGTH} bytes and has been trimmed**`
+  const errorMsg = `**Report exceeded GitHub limit of ${getMaxReportLength(options)} bytes and has been trimmed**`
   const maxErrorMsgLength = closingBlock.length + errorMsg.length + 2
-  const maxReportLength = MAX_REPORT_LENGTH - maxErrorMsgLength
+  const maxReportLength = getMaxReportLength(options) - maxErrorMsgLength
 
   let reportLength = 0
   let codeBlock = false
